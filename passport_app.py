@@ -670,33 +670,42 @@ def run_automation(guests_list, username, password, arrival_date_str, departure_
         # --- SCREENSHOT & GOOGLE DRIVE UPLOAD ---
         st.info("📸 Taking a final screenshot of the guest list...")
         try:
-            # Navigate to the main list view again using the sidebar menu or main link
+            # 1. Xử lý triệt để các cảnh báo (Alert) đang bị kẹt trước khi chuyển trang
+            try:
+                alert = driver.switch_to.alert
+                alert.accept()
+                time.sleep(1)
+            except Exception:
+                pass # Không có alert nào thì bỏ qua
+
+            # Navigate to the main list view
             driver.get("https://danang.xuatnhapcanh.gov.vn/faces/manage_kbtt.jsf")
             
-            # Use a more resilient wait condition to ensure the page is actually visible
-            st.write("⏳ Waiting for list page to load...")
-            wait.until(EC.visibility_of_element_located((By.XPATH, "//*[contains(text(), 'Thêm mới')] | //a[contains(., 'Thêm mới')]")))
+            # Wait for list to load
+            wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Thêm mới')] | //a[contains(., 'Thêm mới')]")))
             
-            # Additional wait to ensure data table populates from the database
+            # Additional wait to ensure data table populates
             time.sleep(3) 
             
-            os.makedirs("output", exist_ok=True)
-            screenshot_name = f"output/guest_list_{int(time.time())}.png"
+            # Dùng đường dẫn tuyệt đối an toàn hơn trên các môi trường Cloud
+            import tempfile
+            temp_dir = tempfile.gettempdir()
+            screenshot_name = os.path.join(temp_dir, f"guest_list_{int(time.time())}.png")
             
-            # Ensure full height for screenshot. Wrap in try/except in case Javascript fails.
+            # 2. Xử lý lấy chiều cao an toàn
             try:
                 height = driver.execute_script("return document.body.scrollHeight")
                 driver.set_window_size(1920, int(height) + 200)
-                time.sleep(1) # small buffer after resize
-            except Exception:
-                driver.set_window_size(1920, 2000) # fallback size
-                
+            except Exception as resize_err:
+                st.warning(f"⚠️ Không thể mở rộng toàn màn hình: {resize_err}. Đang chụp ảnh ở kích thước mặc định.")
+            
+            # 3. Chụp và lưu ảnh
             driver.save_screenshot(screenshot_name)
             
             st.success(f"🖼 Screenshot saved locally as `{screenshot_name}`")
             st.image(screenshot_name, caption="Final Guest List")
             
-            # Upload to Google Drive
+            # 4. Upload to Google Drive
             st.info("☁️ Uploading screenshot to Google Drive...")
             file_id = upload_screenshot_to_drive(screenshot_name)
             
@@ -705,13 +714,10 @@ def run_automation(guests_list, username, password, arrival_date_str, departure_
                 st.success(f"✅ Uploaded to Google Drive successfully!")
                 st.markdown(f"**[🔗 Click here to view the screenshot on Google Drive]({drive_link})**")
             else:
-                st.error("❌ Failed to upload screenshot to Google Drive. Check logs/credentials.")
+                st.error("❌ Failed to upload screenshot to Google Drive. Check `upload_screenshot_to_drive` logic or credentials.")
                 
         except Exception as ss_err:
             st.error(f"Failed to capture or upload the final screenshot: {ss_err}")
-
-    except Exception as e:
-        st.error(f"Automation Error: {e}")
 
 # --- 3. THE APP INTERFACE ---
 st.title("🛂 Da Nang Guest Registration Bot")
