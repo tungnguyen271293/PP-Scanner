@@ -669,43 +669,42 @@ def run_automation(guests_list, username, password, arrival_date_str, departure_
         
         # --- SCREENSHOT & GOOGLE DRIVE UPLOAD ---
         st.info("📸 Taking a final screenshot of the guest list...")
+        # If after the last guest, we are still on the "Thêm mới" form view
+        # because the loop skips the final "Thêm mới" click.
+        # We need to click "Quay lại" to return to the main guest list.
+        st.write("⏳ Formatting table for screenshot...")
         try:
-            # 1. Xử lý triệt để các cảnh báo (Alert) đang bị kẹt trước khi chuyển trang
-            try:
-                alert = driver.switch_to.alert
-                alert.accept()
-                time.sleep(1)
-            except Exception:
-                pass # Không có alert nào thì bỏ qua
-
-            # Navigate to the main list view
+            # Try to find and click the "Quay lại" (Back) button
+            back_xpath = "//*[contains(text(), 'Quay lại')] | //button[contains(., 'Quay lại')] | //a[contains(., 'Quay lại')]"
+            back_btn = wait.until(EC.element_to_be_clickable((By.XPATH, back_xpath)))
+            driver.execute_script("arguments[0].click();", back_btn)
+            time.sleep(2)
+        except Exception:
+            # Fallback: if we can't find 'Quay lại', refresh the list via URL but wait carefully
             driver.get("https://danang.xuatnhapcanh.gov.vn/faces/manage_kbtt.jsf")
+        
+        try:
+            # Wait for list page (presence of search button or add button)
+            wait.until(EC.visibility_of_element_located((By.XPATH, "//*[contains(text(), 'Thêm mới')] | //a[contains(., 'Thêm mới')]")))
+            time.sleep(3)
             
-            # Wait for list to load
-            wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Thêm mới')] | //a[contains(., 'Thêm mới')]")))
+            os.makedirs("output", exist_ok=True)
+            screenshot_name = f"output/guest_list_{int(time.time())}.png"
             
-            # Additional wait to ensure data table populates
-            time.sleep(3) 
-            
-            # Dùng đường dẫn tuyệt đối an toàn hơn trên các môi trường Cloud
-            import tempfile
-            temp_dir = tempfile.gettempdir()
-            screenshot_name = os.path.join(temp_dir, f"guest_list_{int(time.time())}.png")
-            
-            # 2. Xử lý lấy chiều cao an toàn
+            # Ensure full height for screenshot. Wrap in try/except in case Javascript fails.
             try:
                 height = driver.execute_script("return document.body.scrollHeight")
                 driver.set_window_size(1920, int(height) + 200)
-            except Exception as resize_err:
-                st.warning(f"⚠️ Không thể mở rộng toàn màn hình: {resize_err}. Đang chụp ảnh ở kích thước mặc định.")
-            
-            # 3. Chụp và lưu ảnh
+                time.sleep(1) # small buffer after resize
+            except Exception:
+                driver.set_window_size(1920, 2000) # fallback size
+                
             driver.save_screenshot(screenshot_name)
             
             st.success(f"🖼 Screenshot saved locally as `{screenshot_name}`")
             st.image(screenshot_name, caption="Final Guest List")
             
-            # 4. Upload to Google Drive
+            # Upload to Google Drive
             st.info("☁️ Uploading screenshot to Google Drive...")
             file_id = upload_screenshot_to_drive(screenshot_name)
             
@@ -714,10 +713,13 @@ def run_automation(guests_list, username, password, arrival_date_str, departure_
                 st.success(f"✅ Uploaded to Google Drive successfully!")
                 st.markdown(f"**[🔗 Click here to view the screenshot on Google Drive]({drive_link})**")
             else:
-                st.error("❌ Failed to upload screenshot to Google Drive. Check `upload_screenshot_to_drive` logic or credentials.")
+                st.error("❌ Failed to upload screenshot to Google Drive. Check logs/credentials.")
                 
         except Exception as ss_err:
             st.error(f"Failed to capture or upload the final screenshot: {ss_err}")
+
+    except Exception as e:
+        st.error(f"Automation Error: {e}")
 
 # --- 3. THE APP INTERFACE ---
 st.title("🛂 Da Nang Guest Registration Bot")
