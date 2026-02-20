@@ -673,18 +673,24 @@ def run_automation(guests_list, username, password, arrival_date_str, departure_
             # Navigate to the main list view again using the sidebar menu or main link
             driver.get("https://danang.xuatnhapcanh.gov.vn/faces/manage_kbtt.jsf")
             
-            # Wait for list to load
-            wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Thêm mới')] | //a[contains(., 'Thêm mới')]")))
+            # Use a more resilient wait condition to ensure the page is actually visible
+            st.write("⏳ Waiting for list page to load...")
+            wait.until(EC.visibility_of_element_located((By.XPATH, "//*[contains(text(), 'Thêm mới')] | //a[contains(., 'Thêm mới')]")))
             
-            # Additional wait to ensure data table populates
-            time.sleep(2) 
+            # Additional wait to ensure data table populates from the database
+            time.sleep(3) 
             
             os.makedirs("output", exist_ok=True)
             screenshot_name = f"output/guest_list_{int(time.time())}.png"
             
-            # Ensure full height for screenshot
-            height = driver.execute_script("return document.body.scrollHeight")
-            driver.set_window_size(1920, height + 200)
+            # Ensure full height for screenshot. Wrap in try/except in case Javascript fails.
+            try:
+                height = driver.execute_script("return document.body.scrollHeight")
+                driver.set_window_size(1920, int(height) + 200)
+                time.sleep(1) # small buffer after resize
+            except Exception:
+                driver.set_window_size(1920, 2000) # fallback size
+                
             driver.save_screenshot(screenshot_name)
             
             st.success(f"🖼 Screenshot saved locally as `{screenshot_name}`")
