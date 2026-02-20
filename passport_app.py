@@ -711,9 +711,9 @@ def run_automation(guests_list, username, password, arrival_date_str, departure_
 st.title("🛂 Da Nang Guest Registration Bot")
 st.write("Upload a passport photo to auto-fill the police declaration.")
 
-# Sidebar for API Key & Listings
+# Sidebar Configuration
 st.sidebar.header("🛠 Configuration")
-api_key = st.sidebar.text_input("AI API Key (Gemini or OpenAI)", value=DEFAULT_API_KEY, type="password")
+api_key = DEFAULT_API_KEY # Hidden from users, loaded automatically
 use_headless = st.sidebar.checkbox("👻 Run in Headless Mode", value=True, help="Uncheck to see the browser window popup locally.")
 
 st.sidebar.divider()
@@ -761,4 +761,4 @@ if uploaded_files and api_key:
                 # Step 2: Run Bot for the whole list
                 run_automation(all_extracted_data, credentials['username'], credentials['password'], str_arrival, str_departure, selected_listing, use_headless)
 elif not api_key:
-    st.warning("Please enter your API Key in the sidebar to start.")
+    st.warning("⚠️ API Key not found. Please ensure it is configured in your Streamlit Cloud Secrets.")
